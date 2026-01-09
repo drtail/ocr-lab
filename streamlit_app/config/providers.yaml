@@ -1,0 +1,186 @@
+providers:
+  veryfi:
+    name: "Veryfi"
+    type: "receipt_specific"
+    description: "Specialized receipt parsing with structured output"
+    documentation_url: "https://docs.veryfi.com/"
+    config_schema:
+      client_id:
+        type: "string"
+        required: true
+        secret: true
+        env_var: "VERYFI_CLIENT_ID"
+        description: "Veryfi Client ID"
+      client_secret:
+        type: "string"
+        required: true
+        secret: true
+        env_var: "VERYFI_CLIENT_SECRET"
+        description: "Veryfi Client Secret"
+      username:
+        type: "string"
+        required: true
+        env_var: "VERYFI_USERNAME"
+        description: "Veryfi Username"
+      api_key:
+        type: "string"
+        required: true
+        secret: true
+        env_var: "VERYFI_API_KEY"
+        description: "Veryfi API Key"
+      categories:
+        type: "array"
+        required: false
+        default: ["Grocery", "Meals & Entertainment"]
+        options: ["Grocery", "Meals & Entertainment", "Shopping", "Gas/Transport", "Other"]
+        description: "Receipt categories"
+      boost_mode:
+        type: "boolean"
+        required: false
+        default: false
+        description: "Enable boost mode for higher accuracy (slower)"
+
+  taggun:
+    name: "Taggun"
+    type: "receipt_specific"
+    description: "AI-powered receipt OCR with line item extraction"
+    documentation_url: "https://www.taggun.io/docs"
+    config_schema:
+      api_key:
+        type: "string"
+        required: true
+        secret: true
+        env_var: "TAGGUN_API_KEY"
+        description: "Taggun API Key"
+      extract_line_items:
+        type: "boolean"
+        required: false
+        default: true
+        description: "Extract individual line items"
+      extract_payment_method:
+        type: "boolean"
+        required: false
+        default: true
+        description: "Extract payment method"
+      language:
+        type: "string"
+        required: false
+        default: "en"
+        options: ["en", "ko", "ja", "zh", "es", "fr", "de"]
+        description: "Receipt language"
+
+  klippa:
+    name: "Klippa"
+    type: "receipt_specific"
+    description: "Document recognition and receipt parsing"
+    documentation_url: "https://docs.klippa.com/"
+    config_schema:
+      api_key:
+        type: "string"
+        required: true
+        secret: true
+        env_var: "KLIPPA_API_KEY"
+        description: "Klippa API Key"
+      template:
+        type: "string"
+        required: false
+        default: "receipts"
+        options: ["receipts", "invoices", "general"]
+        description: "Document template"
+      extract_merchant_details:
+        type: "boolean"
+        required: false
+        default: true
+        description: "Extract merchant details"
+      extract_line_items:
+        type: "boolean"
+        required: false
+        default: true
+        description: "Extract line items"
+
+  openai:
+    name: "OpenAI (ChatGPT)"
+    type: "ai_vision"
+    description: "GPT-4 Vision for intelligent receipt analysis"
+    documentation_url: "https://platform.openai.com/docs/guides/vision"
+    config_schema:
+      api_key:
+        type: "string"
+        required: true
+        secret: true
+        env_var: "OPENAI_API_KEY"
+        description: "OpenAI API Key"
+      model:
+        type: "string"
+        required: false
+        default: "gpt-4o"
+        options: ["gpt-4o", "gpt-5.1"]
+        description: "Model to use for vision analysis"
+      max_tokens:
+        type: "integer"
+        required: false
+        default: 1000
+        description: "Maximum tokens in response"
+      temperature:
+        type: "number"
+        required: false
+        default: 0.1
+        description: "Temperature for generation (0-2)"
+
+  mistral:
+    name: "Mistral AI"
+    type: "ai_vision"
+    description: "Mistral Pixtral vision model for receipt analysis"
+    documentation_url: "https://docs.mistral.ai/capabilities/vision/"
+    config_schema:
+      api_key:
+        type: "string"
+        required: true
+        secret: true
+        env_var: "MISTRAL_API_KEY"
+        description: "Mistral API Key"
+      model:
+        type: "string"
+        required: false
+        default: "mistral-ocr-2512"
+        options: ["mistral-ocr-2512", "mistral-ocr-2505"]
+        description: "Model to use for vision analysis"
+      max_tokens:
+        type: "integer"
+        required: false
+        default: 1000
+        description: "Maximum tokens in response"
+      temperature:
+        type: "number"
+        required: false
+        default: 0.1
+        description: "Temperature for generation (0-1)"
+
+  gemini:
+    name: "Google Gemini"
+    type: "ai_vision"
+    description: "Gemini Pro Vision for multimodal receipt understanding"
+    documentation_url: "https://ai.google.dev/gemini-api/docs/vision"
+    config_schema:
+      api_key:
+        type: "string"
+        required: true
+        secret: true
+        env_var: "GEMINI_API_KEY"
+        description: "Google AI API Key"
+      model:
+        type: "string"
+        required: false
+        default: "gemini-3-flash-preview"
+        options: ["gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-3-pro-image-preview", "gemini-2.5-flash"]
+        description: "Model to use for vision analysis"
+      max_tokens:
+        type: "integer"
+        required: false
+        default: 1000
+        description: "Maximum tokens in response"
+      temperature:
+        type: "number"
+        required: false
+        default: 0.1
+        description: "Temperature for generation (0-2)"
