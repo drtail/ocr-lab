@@ -125,7 +125,7 @@ class ConfigManager:
         return provider_config.get("config_schema", {})
 
     def load_config_from_env(self, provider_name: str) -> Dict[str, Any]:
-        """Load provider configuration from environment variables.
+        """Load provider configuration from environment variables or Streamlit secrets.
 
         Args:
             provider_name: Name of the provider
@@ -140,16 +140,29 @@ class ConfigManager:
         config = {}
         missing_required = []
 
+        # Try to import streamlit for secrets support
+        try:
+            import streamlit as st
+            has_streamlit = True
+        except ImportError:
+            has_streamlit = False
+
         for key, field_schema in schema.items():
-            # Try to load from environment variable
+            # Try to load from environment variable or Streamlit secrets
             env_var = field_schema.get("env_var")
             if env_var:
-                value = os.getenv(env_var)
+                # Try Streamlit secrets first (for cloud deployment), then environment
+                value = None
+                if has_streamlit and hasattr(st, 'secrets') and env_var in st.secrets:
+                    value = st.secrets[env_var]
+                else:
+                    value = os.getenv(env_var)
+
                 if value:
                     # Convert type based on schema
                     field_type = field_schema.get("type", "string")
                     try:
-                        config[key] = self._convert_type(value, field_type)
+                        config[key] = self._convert_type(str(value), field_type)
                     except (ValueError, TypeError) as e:
                         raise ValueError(
                             f"Invalid value for {key} from {env_var}: {str(e)}"
@@ -170,7 +183,7 @@ class ConfigManager:
         if missing_required:
             raise ValueError(
                 f"Missing required environment variables: {', '.join(missing_required)}\n"
-                f"Please set these in your .env file."
+                f"Please set these in your .env file or Streamlit secrets."
             )
 
         return config

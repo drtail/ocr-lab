@@ -43,7 +43,7 @@ htmlcov/
 .tox/
 
 # Streamlit
-.streamlit/
+.streamlit/secrets.toml
 
 # Credentials
 *.json
