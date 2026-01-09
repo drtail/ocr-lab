@@ -175,30 +175,47 @@ def render_sidebar():
 
         st.write(f"💻 Current working directory: `{os.getcwd()}`")
 
+        # Check if using Streamlit secrets
+        using_secrets = hasattr(st, 'secrets') and len(st.secrets) > 0
+        if using_secrets:
+            st.write("🔐 Using: **Streamlit secrets** (production mode)")
+        else:
+            st.write("📁 Using: **.env file** (local development)")
+
         # Show sample env vars (without revealing values)
-        st.write("**Environment variables set:**")
+        st.write("**Configuration variables:**")
         test_vars = ["OPENAI_API_KEY", "MISTRAL_API_KEY", "GEMINI_API_KEY", "VERYFI_API_KEY"]
         for var in test_vars:
-            is_set = os.getenv(var) is not None
+            is_set = (
+                (hasattr(st, 'secrets') and var in st.secrets) or
+                os.getenv(var) is not None
+            )
             st.write(f"- {var}: {'✅ Set' if is_set else '❌ Not set'}")
 
 
 def load_configs_from_env():
-    """Load provider configurations from environment variables."""
+    """Load provider configurations from environment variables or Streamlit secrets."""
     config_manager = st.session_state.config_manager
 
-    # Dynamically reload .env file to pick up any changes
-    env_path, env_exists = config_manager.reload_env()
+    # Check if we're using Streamlit secrets (production) or .env file (local)
+    using_secrets = hasattr(st, 'secrets') and len(st.secrets) > 0
 
-    if not env_exists:
-        st.sidebar.error(
-            f"❌ .env file not found at: {env_path}\n"
-            f"Please create a .env file in the project root with your API keys."
-        )
-        return
+    if using_secrets:
+        # In production/Streamlit Cloud - use secrets
+        st.sidebar.info("📄 Loading from: Streamlit secrets")
+    else:
+        # In local development - reload .env file to pick up any changes
+        env_path, env_exists = config_manager.reload_env()
 
-    # Show which .env file was loaded
-    st.sidebar.info(f"📄 Loading from: {env_path}")
+        if not env_exists:
+            st.sidebar.error(
+                f"❌ .env file not found at: {env_path}\n"
+                f"Please create a .env file or configure Streamlit secrets."
+            )
+            return
+
+        # Show which .env file was loaded
+        st.sidebar.info(f"📄 Loading from: {env_path}")
 
     loaded_count = 0
     failed_count = 0
@@ -245,7 +262,11 @@ def load_configs_from_env():
                 with st.sidebar.expander("ℹ️ Required environment variables"):
                     import os
                     for env_var in required_env_vars:
-                        is_set = os.getenv(env_var) is not None
+                        # Check both Streamlit secrets and environment variables
+                        is_set = (
+                            (hasattr(st, 'secrets') and env_var in st.secrets) or
+                            os.getenv(env_var) is not None
+                        )
                         status = "✅" if is_set else "❌"
                         st.write(f"{status} {env_var}")
 
@@ -262,12 +283,12 @@ def load_configs_from_env():
     elif loaded_count > 0 and failed_count > 0:
         st.sidebar.warning(
             f"⚠️ Loaded {loaded_count} provider(s), {failed_count} failed. "
-            f"Check your .env file."
+            f"Check your configuration (secrets or .env file)."
         )
     elif failed_count > 0:
         st.sidebar.error(
             f"❌ Failed to load all {failed_count} provider(s). "
-            f"Please check your .env file and ensure all required keys are set."
+            f"Please check your Streamlit secrets or .env file and ensure all required keys are set."
         )
 
     # Increment config version to force form widgets to refresh with new values
