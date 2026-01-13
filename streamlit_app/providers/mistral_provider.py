@@ -138,7 +138,7 @@ Extract and return ONLY a JSON object with this structure:
 Use null for missing fields. Return ONLY the JSON, no additional text."""
 
             structure_response = self.client.chat.complete(
-                model=model,
+                model="mistral-small-latest",
                 messages=[{"role": "user", "content": structure_prompt}],
                 temperature=0.1
             )
