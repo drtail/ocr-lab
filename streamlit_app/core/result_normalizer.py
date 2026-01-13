@@ -4,6 +4,10 @@ from typing import List, Optional, Dict, Any
 from decimal import Decimal
 from datetime import datetime, time
 from pydantic import BaseModel, Field, field_validator
+import logging
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 class LineItem(BaseModel):
@@ -16,10 +20,10 @@ class LineItem(BaseModel):
     category: Optional[str] = Field(None, description="Item category")
     sku: Optional[str] = Field(None, description="Stock keeping unit / product code")
 
-    @field_validator("quantity", "unit_price", "total_price", mode="before")
+    @field_validator("quantity", "unit_price", mode="before")
     @classmethod
-    def convert_to_decimal(cls, v):
-        """Convert numeric values to Decimal."""
+    def convert_optional_to_decimal(cls, v):
+        """Convert optional numeric values to Decimal."""
         if v is None:
             return None
         if isinstance(v, (int, float)):
@@ -30,6 +34,26 @@ class LineItem(BaseModel):
             except:
                 return None
         return v
+
+    @field_validator("total_price", mode="before")
+    @classmethod
+    def convert_required_to_decimal(cls, v):
+        """Convert required numeric values to Decimal with fallback to 0."""
+        if v is None:
+            logger.warning("total_price is None, defaulting to 0")
+            return Decimal("0")
+        if isinstance(v, (int, float)):
+            return Decimal(str(v))
+        if isinstance(v, str):
+            try:
+                return Decimal(v)
+            except Exception as e:
+                logger.warning(f"Failed to convert total_price '{v}' to Decimal: {e}, defaulting to 0")
+                return Decimal("0")
+        if isinstance(v, Decimal):
+            return v
+        logger.warning(f"Unexpected total_price type {type(v)}, defaulting to 0")
+        return Decimal("0")
 
 
 class ReceiptData(BaseModel):
@@ -130,6 +154,28 @@ class ResultNormalizer:
     """Normalizes provider-specific responses to standard format."""
 
     @staticmethod
+    def _safe_get_numeric(data: Dict[str, Any], *keys, default=0):
+        """Safely extract numeric value from dictionary with fallback chain.
+
+        Args:
+            data: Dictionary to extract from
+            *keys: Keys to try in order (e.g., 'total', 'price', 'amount')
+            default: Default value if all keys are missing or None
+
+        Returns:
+            First non-None value found, or default
+
+        Example:
+            _safe_get_numeric(item, 'total', 'price', default=0)
+            # Returns first non-None value of item['total'] or item['price'], or 0
+        """
+        for key in keys:
+            value = data.get(key)
+            if value is not None:
+                return value
+        return default
+
+    @staticmethod
     def normalize_veryfi(raw_response: Dict[str, Any]) -> ReceiptData:
         """Normalize Veryfi response to standard format.
 
@@ -142,19 +188,30 @@ class ResultNormalizer:
         vendor = raw_response.get("vendor", {})
         line_items_raw = raw_response.get("line_items", [])
 
-        # Extract line items
-        line_items = [
-            LineItem(
-                description=item.get("description", ""),
-                quantity=item.get("quantity"),
-                unit_price=item.get("price"),
-                total_price=item.get("total", item.get("price", 0)),
-                category=item.get("category"),
-                sku=item.get("sku")
-            )
-            for item in line_items_raw
-            if item.get("description") or item.get("total")
-        ]
+        # Extract line items with guardrails
+        line_items = []
+        for item in line_items_raw:
+            # Skip items without description AND without price data
+            if not item.get("description") and not ResultNormalizer._safe_get_numeric(item, "total", "price"):
+                logger.debug(f"Skipping line item without description or price: {item}")
+                continue
+
+            try:
+                # Use safe numeric extraction with proper None handling
+                total_price = ResultNormalizer._safe_get_numeric(item, "total", "price", default=0)
+
+                line_item = LineItem(
+                    description=item.get("description", ""),
+                    quantity=item.get("quantity"),
+                    unit_price=item.get("price"),
+                    total_price=total_price,
+                    category=item.get("category"),
+                    sku=item.get("sku")
+                )
+                line_items.append(line_item)
+            except Exception as e:
+                logger.warning(f"Failed to create LineItem from Veryfi data: {item}. Error: {e}")
+                continue
 
         # Build confidence scores
         confidence_scores = {}
@@ -168,7 +225,7 @@ class ResultNormalizer:
             merchant_category=vendor.get("category"),
             transaction_date=raw_response.get("date"),
             receipt_number=raw_response.get("receipt_number"),
-            total_amount=raw_response.get("total", 0),
+            total_amount=ResultNormalizer._safe_get_numeric(raw_response, "total", default=0),
             currency=raw_response.get("currency_code", "USD"),
             subtotal=raw_response.get("subtotal"),
             tax_amount=raw_response.get("tax"),
