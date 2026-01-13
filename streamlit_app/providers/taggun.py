@@ -1,6 +1,7 @@
 """Taggun OCR provider implementation."""
 
 import time
+import mimetypes
 import requests
 from typing import Dict, Any
 from pathlib import Path
@@ -61,23 +62,51 @@ class TaggunProvider(OCRProvider):
         confidence_score = None
 
         try:
-            # Prepare request
+            # Prepare request - DO NOT set content-type for multipart/form-data
+            # requests library handles this automatically with proper boundary
             headers = {
                 "apikey": self.api_key,
-                "Accept": "application/json"
+                "accept": "application/json"
             }
 
-            with open(image_path, "rb") as image_file:
-                files = {"file": image_file}
+            # Prepare form data
+            data = {}
 
-                # Optional parameters
-                data = {}
-                if "extract_line_items" in self.config:
-                    data["extractLineItems"] = str(self.config["extract_line_items"]).lower()
-                if "extract_payment_method" in self.config:
-                    data["extractPaymentMethod"] = str(self.config["extract_payment_method"]).lower()
-                if "language" in self.config:
-                    data["language"] = self.config["language"]
+            # Extract line items (default: true)
+            extract_line_items = self.config.get("extract_line_items", True)
+            data["extractLineItems"] = "true" if extract_line_items else "false"
+
+            # Extract payment method (default: true)
+            extract_payment = self.config.get("extract_payment_method", True)
+            data["extractPaymentMethod"] = "true" if extract_payment else "false"
+
+            # Extract time (default: false)
+            extract_time = self.config.get("extract_time", False)
+            data["extractTime"] = "true" if extract_time else "false"
+
+            # Incognito mode (default: false)
+            incognito = self.config.get("incognito", False)
+            data["incognito"] = "true" if incognito else "false"
+
+            # Refresh (default: false)
+            refresh = self.config.get("refresh", False)
+            data["refresh"] = "true" if refresh else "false"
+
+            # Language (optional)
+            if "language" in self.config:
+                data["language"] = self.config["language"]
+
+            # Prepare file upload
+            with open(image_path, "rb") as image_file:
+                # Detect MIME type for proper file upload
+                mime_type, _ = mimetypes.guess_type(image_path)
+                if not mime_type or not mime_type.startswith("image/"):
+                    mime_type = "image/png"  # Default fallback
+
+                # Properly format file upload with content type
+                files = {
+                    "file": (Path(image_path).name, image_file, mime_type)
+                }
 
                 # Call Taggun API
                 response = requests.post(
@@ -104,6 +133,13 @@ class TaggunProvider(OCRProvider):
             receipt_data = ResultNormalizer.normalize_taggun(raw_response)
             normalized_data = receipt_data.model_dump()
 
+        except requests.exceptions.HTTPError as e:
+            # Include response body in error for debugging 400 errors
+            try:
+                error_detail = e.response.json() if e.response else {}
+                error = f"Taggun API error: {e.response.status_code} - {error_detail}"
+            except:
+                error = f"Taggun API error: {str(e)}"
         except requests.exceptions.RequestException as e:
             error = f"Taggun API error: {str(e)}"
         except Exception as e:
@@ -144,6 +180,24 @@ class TaggunProvider(OCRProvider):
                 "required": False,
                 "default": True,
                 "description": "Extract payment method"
+            },
+            "extract_time": {
+                "type": "boolean",
+                "required": False,
+                "default": False,
+                "description": "Extract time information"
+            },
+            "incognito": {
+                "type": "boolean",
+                "required": False,
+                "default": False,
+                "description": "Incognito mode (doesn't store receipt data)"
+            },
+            "refresh": {
+                "type": "boolean",
+                "required": False,
+                "default": False,
+                "description": "Force refresh cached results"
             },
             "language": {
                 "type": "string",
