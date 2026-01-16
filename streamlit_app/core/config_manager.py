@@ -153,8 +153,14 @@ class ConfigManager:
             if env_var:
                 # Try Streamlit secrets first (for cloud deployment), then environment
                 value = None
-                if has_streamlit and hasattr(st, 'secrets') and env_var in st.secrets:
-                    value = st.secrets[env_var]
+                if has_streamlit and hasattr(st, 'secrets'):
+                    try:
+                        # Try to access secrets, but if secrets.toml doesn't exist,
+                        # fall back to environment variables
+                        value = st.secrets.get(env_var)
+                    except Exception:
+                        # Secrets file doesn't exist or other error, use environment
+                        value = os.getenv(env_var)
                 else:
                     value = os.getenv(env_var)
 

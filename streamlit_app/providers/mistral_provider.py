@@ -143,7 +143,7 @@ Use null for missing fields. Return ONLY the JSON, no additional text."""
                 temperature=0.1
             )
 
-            content = structure_response.choices[0].message.content
+            content: str = structure_response.choices[0].message.content
 
             # Parse JSON from response
             if "```json" in content:

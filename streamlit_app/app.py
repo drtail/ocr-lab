@@ -176,7 +176,11 @@ def render_sidebar():
         st.write(f"💻 Current working directory: `{os.getcwd()}`")
 
         # Check if using Streamlit secrets
-        using_secrets = hasattr(st, 'secrets') and len(st.secrets) > 0
+        try:
+            using_secrets = hasattr(st, 'secrets') and len(st.secrets) > 0
+        except Exception:
+            using_secrets = False
+
         if using_secrets:
             st.write("🔐 Using: **Streamlit secrets** (production mode)")
         else:
@@ -186,10 +190,18 @@ def render_sidebar():
         st.write("**Configuration variables:**")
         test_vars = ["OPENAI_API_KEY", "MISTRAL_API_KEY", "GEMINI_API_KEY", "VERYFI_API_KEY"]
         for var in test_vars:
-            is_set = (
-                (hasattr(st, 'secrets') and var in st.secrets) or
-                os.getenv(var) is not None
-            )
+            # Check environment variable first (local development)
+            is_set_in_env = os.getenv(var) is not None
+
+            # Try secrets only if we successfully detected them earlier
+            is_set_in_secrets = False
+            if using_secrets:
+                try:
+                    is_set_in_secrets = var in st.secrets
+                except Exception:
+                    pass
+
+            is_set = is_set_in_env or is_set_in_secrets
             st.write(f"- {var}: {'✅ Set' if is_set else '❌ Not set'}")
 
 
@@ -198,7 +210,10 @@ def load_configs_from_env():
     config_manager = st.session_state.config_manager
 
     # Check if we're using Streamlit secrets (production) or .env file (local)
-    using_secrets = hasattr(st, 'secrets') and len(st.secrets) > 0
+    try:
+        using_secrets = hasattr(st, 'secrets') and len(st.secrets) > 0
+    except Exception:
+        using_secrets = False
 
     if using_secrets:
         # In production/Streamlit Cloud - use secrets
@@ -262,11 +277,18 @@ def load_configs_from_env():
                 with st.sidebar.expander("ℹ️ Required environment variables"):
                     import os
                     for env_var in required_env_vars:
-                        # Check both Streamlit secrets and environment variables
-                        is_set = (
-                            (hasattr(st, 'secrets') and env_var in st.secrets) or
-                            os.getenv(env_var) is not None
-                        )
+                        # Check environment variables first (local development)
+                        is_set_in_env = os.getenv(env_var) is not None
+
+                        # Try secrets only if available
+                        is_set_in_secrets = False
+                        if using_secrets:
+                            try:
+                                is_set_in_secrets = env_var in st.secrets
+                            except Exception:
+                                pass
+
+                        is_set = is_set_in_env or is_set_in_secrets
                         status = "✅" if is_set else "❌"
                         st.write(f"{status} {env_var}")
 

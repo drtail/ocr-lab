@@ -5,8 +5,8 @@ from typing import Dict, Any
 from pathlib import Path
 
 try:
-    import google.generativeai as genai
-    from google.generativeai.types import HarmCategory, HarmBlockThreshold
+    from google import genai
+    from google.genai.client import Client as GenaiClient
 except ImportError:
     genai = None
 
@@ -20,8 +20,10 @@ class GeminiProvider(OCRProvider):
     def __init__(self):
         """Initialize Gemini provider."""
         super().__init__()
-        self.model = None
         self.name = "gemini"
+        self.client: GenaiClient | None = None
+        self.model = None
+        self.generation_config = {}
 
     def configure(self, config: Dict[str, Any]) -> None:
         """Apply runtime configuration.
@@ -38,34 +40,26 @@ class GeminiProvider(OCRProvider):
 
         if genai is None:
             raise ImportError(
-                "Google Generative AI SDK not installed. Install with: pip install google-generativeai"
+                "Google Generative AI SDK not installed. Install with: pip install google-genai"
             )
 
         # Configure Gemini with API key
-        genai.configure(api_key=config["api_key"])
-
-        # Get model name
-        model_name = config.get("model", "gemini-2.0-flash-exp")
+        self.client = genai.Client(api_key=config["api_key"])
+        self.model = config.get("model", "gemini-3-flash-preview")
 
         # Initialize model with safety settings
-        generation_config = {
+        self.generation_config = {
             "temperature": config.get("temperature", 0.1),
             "max_output_tokens": config.get("max_tokens", 1000),
         }
 
         # Disable safety filters for receipt text
-        safety_settings = {
-            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-        }
-
-        self.model = genai.GenerativeModel(
-            model_name=model_name,
-            generation_config=generation_config,
-            safety_settings=safety_settings
-        )
+        # safety_settings = {
+        #     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+        #     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+        #     HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+        #     HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+        # }
 
         # Store additional config
         self.config = config
@@ -132,7 +126,7 @@ Extract all visible information. Use null for missing fields. Ensure amounts are
             image = Image.open(io.BytesIO(image_data))
 
             # Generate content with image
-            response = self.model.generate_content([prompt, image])
+            response = self.client.models.generate_content(model=self.model, contents=[prompt, image])
 
             # Extract response
             content = response.text
